@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Counter Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #1a1a1a;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+
+        canvas {
+            display: block;
+            border: 2px solid #444;
+        }
+
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        #level {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        #instructions {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="score">Score: 0</div>
+    <div id="level">Level: 1</div>
+    <div id="instructions">Use <b>W, A, S, D</b> to move and click to shoot.<br>Hold <b>Shift</b> to sprint.</div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            size: 20,
+            color: '#4a90e2',
+            speed: 5,
+        };
+
+        const bullets = [];
+        const enemies = [];
+        let score = 0;
+        let level = 1;
+        let enemySpeed = 2;
+
+        // Map obstacles
+        const obstacles = [
+            { x: 200, y: 200, width: 300, height: 20 },
+            { x: 600, y: 400, width: 20, height: 300 },
+            { x: 900, y: 100, width: 200, height: 20 },
+        ];
+
+        // Handle player movement
+        const keys = {};
+        window.addEventListener('keydown', (e) => (keys[e.key] = true));
+        window.addEventListener('keyup', (e) => (keys[e.key] = false));
+
+        // Handle shooting
+        canvas.addEventListener('click', (e) => {
+            const angle = Math.atan2(e.clientY - player.y, e.clientX - player.x);
+            bullets.push({
+                x: player.x,
+                y: player.y,
+                size: 5,
+                speed: 7,
+                dx: Math.cos(angle) * 7,
+                dy: Math.sin(angle) * 7,
+            });
+        });
+
+        function spawnEnemy() {
+            const size = 20;
+            const x = Math.random() > 0.5 ? 0 : canvas.width;
+            const y = Math.random() * canvas.height;
+            enemies.push({ x, y, size, color: 'red', speed: enemySpeed });
+        }
+
+        function increaseDifficulty() {
+            if (score % 10 === 0) {
+                level++;
+                enemySpeed += 0.5;
+                document.getElementById('level').textContent = `Level: ${level}`;
+            }
+        }
+
+        setInterval(spawnEnemy, 1000);
+
+        function update() {
+            // Player movement
+            const sprint = keys['Shift'] ? 2 : 1;
+            if (keys['w'] && player.y > 0) player.y -= player.speed * sprint;
+            if (keys['s'] && player.y < canvas.height - player.size) player.y += player.speed * sprint;
+            if (keys['a'] && player.x > 0) player.x -= player.speed * sprint;
+            if (keys['d'] && player.x < canvas.width - player.size) player.x += player.speed * sprint;
+
+            // Update bullets
+            bullets.forEach((bullet, index) => {
+                bullet.x += bullet.dx;
+                bullet.y += bullet.dy;
+
+                // Remove bullets outside the screen
+                if (
+                    bullet.x < 0 ||
+                    bullet.x > canvas.width ||
+                    bullet.y < 0 ||
+                    bullet.y > canvas.height
+                ) {
+                    bullets.splice(index, 1);
+                }
+            });
+
+            // Update enemies
+            enemies.forEach((enemy, index) => {
+                const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+                enemy.x += Math.cos(angle) * enemy.speed;
+                enemy.y += Math.sin(angle) * enemy.speed;
+
+                // Check collision with player
+                const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+                if (dist < player.size + enemy.size) {
+                    alert('Game Over!');
+                    enemies.length = 0;
+                    score = 0;
+                    level = 1;
+                    enemySpeed = 2;
+                    document.getElementById('score').textContent = `Score: ${score}`;
+                    document.getElementById('level').textContent = `Level: ${level}`;
+                }
+
+                // Check collision with bullets
+                bullets.forEach((bullet, bIndex) => {
+                    const dist = Math.hypot(bullet.x - enemy.x, bullet.y - enemy.y);
+                    if (dist < bullet.size + enemy.size) {
+                        enemies.splice(index, 1);
+                        bullets.splice(bIndex, 1);
+                        score++;
+                        document.getElementById('score').textContent = `Score: ${score}`;
+                        increaseDifficulty();
+                    }
+                });
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw obstacles
+            ctx.fillStyle = '#444';
+            obstacles.forEach((obstacle) => {
+                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+            });
+
+            // Draw player
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw bullets
+            bullets.forEach((bullet) => {
+                ctx.fillStyle = 'yellow';
+                ctx.beginPath();
+                ctx.arc(bullet.x, bullet.y, bullet.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Draw enemies
+            enemies.forEach((enemy) => {
+                ctx.fillStyle = enemy.color;
+                ctx.beginPath();
+                ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        // Remove instructions after 5 seconds
+        setTimeout(() => {
+            document.getElementById('instructions').style.display = 'none';
+        }, 5000);
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+
+</html>
